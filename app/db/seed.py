@@ -113,7 +113,9 @@ async def _ensure_admin_user(
         .options(selectinload(User.roles))
         .where(func.lower(User.email) == admin_email.lower())
     )
-    user = await session.scalar(statement)
+    result = await session.execute(statement)
+    user = result.scalars().first()
+
     created = False
     if user is None:
         user = User(
@@ -125,9 +127,12 @@ async def _ensure_admin_user(
             is_active=True,
             email_verified_at=utc_now() if settings.seed_admin_mark_email_verified else None,
         )
+        user.roles = []
         session.add(user)
         await session.flush()
         created = True
+    else:
+        await session.refresh(user, attribute_names=["roles"])
 
     roles_added: list[str] = []
     existing_role_names = {role.name for role in user.roles}
@@ -139,7 +144,6 @@ async def _ensure_admin_user(
         roles_added.append(role_name)
 
     return created, admin_email, roles_added, False
-
 
 async def _ensure_legacy_vehicle_types(
     session: AsyncSession,
