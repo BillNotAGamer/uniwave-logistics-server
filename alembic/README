@@ -1,0 +1,7 @@
+Use Alembic with autogenerate:
+
+1. Ensure DATABASE_URL points to your Postgres database.
+2. Create migration:
+   alembic revision --autogenerate -m "init"
+3. Apply migration:
+   alembic upgrade head
