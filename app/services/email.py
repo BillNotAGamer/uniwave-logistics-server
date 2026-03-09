@@ -2,23 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import smtplib
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from email.message import EmailMessage as SMTPEmailMessage
-from email.utils import formataddr, make_msgid
 from functools import lru_cache
 from typing import Any
 from urllib.parse import quote
 
+import httpx
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings, get_settings
+from app.db.session import AsyncSessionFactory
 from app.models.email_log import EmailLog
 from app.models.mixins import utc_now
-from app.db.session import AsyncSessionFactory
 
 logger = logging.getLogger(__name__)
 
@@ -223,8 +221,8 @@ class EmailService:
 
         exc: Exception | None = None
         try:
-            provider_message_id = await asyncio.to_thread(self._send_via_smtp, email)
-        except Exception as send_exc:  # pragma: no cover - external I/O
+            provider_message_id = await self._send_via_resend(email)
+        except Exception as send_exc:
             status = "failed"
             error_message = str(send_exc)
             sent_at = None
@@ -242,41 +240,45 @@ class EmailService:
         if exc is not None and raise_on_failure:
             raise exc
 
-    def _send_via_smtp(self, email: OutboundEmail) -> str:
-        message = SMTPEmailMessage()
-        message["Subject"] = email.subject
-        message["From"] = formataddr((self._settings.smtp_from_name, self._settings.smtp_from_email))
-        message["To"] = email.to_email
-        message_id = make_msgid()
-        message["Message-ID"] = message_id
+    async def _send_via_resend(self, email: OutboundEmail) -> str:
+        if not self._settings.resend_api_key:
+            raise RuntimeError("RESEND_API_KEY is not configured.")
 
-        message.set_content(email.text_body)
+        payload: dict[str, Any] = {
+            "from": self._settings.resend_from_email,
+            "to": [email.to_email],
+            "subject": email.subject,
+            "text": email.text_body,
+        }
+
         if email.html_body:
-            message.add_alternative(email.html_body, subtype="html")
+            payload["html"] = email.html_body
 
-        if self._settings.smtp_use_ssl:
-            smtp_client: smtplib.SMTP = smtplib.SMTP_SSL(
-                self._settings.smtp_host,
-                self._settings.smtp_port,
-                timeout=self._settings.smtp_timeout_seconds,
-            )
-        else:
-            smtp_client = smtplib.SMTP(
-                self._settings.smtp_host,
-                self._settings.smtp_port,
-                timeout=self._settings.smtp_timeout_seconds,
-            )
+        headers = {
+            "Authorization": f"Bearer {self._settings.resend_api_key}",
+            "Content-Type": "application/json",
+        }
 
-        with smtp_client as client:
-            if self._settings.smtp_use_tls and not self._settings.smtp_use_ssl:
-                client.starttls()
+        timeout = getattr(self._settings, "smtp_timeout_seconds", 20)
 
-            if self._settings.smtp_username:
-                client.login(self._settings.smtp_username, self._settings.smtp_password or "")
+        async with httpx.AsyncClient(
+            base_url=self._settings.resend_base_url.rstrip("/"),
+            timeout=timeout,
+        ) as client:
+            response = await client.post("/emails", json=payload, headers=headers)
 
-            client.send_message(message)
+        if response.status_code >= 400:
+            try:
+                detail = response.json()
+            except Exception:
+                detail = response.text
+            raise RuntimeError(f"Resend API error {response.status_code}: {detail}")
 
-        return message_id.strip("<>")
+        data = response.json()
+        message_id = data.get("id")
+        if not message_id:
+            raise RuntimeError("Resend API response missing message id.")
+        return str(message_id)
 
     async def _log_email(
         self,
@@ -293,7 +295,7 @@ class EmailService:
                 to_email=email.to_email,
                 subject=email.subject,
                 template_key=email.template_key,
-                provider_name="smtp",
+                provider_name="resend",
                 provider_message_id=provider_message_id,
                 status=status,
                 error_message=error_message,

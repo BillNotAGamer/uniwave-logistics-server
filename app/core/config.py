@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     seed_admin_password: str | None = None
     seed_admin_display_name: str = "Admin"
     seed_admin_mark_email_verified: bool = True
+    resend_api_key: str | None = None
+    resend_from_email: str = "Uniwave Logistics <onboarding@resend.dev>"
+    resend_base_url: str = "https://api.resend.com"
 
     model_config = SettingsConfigDict(
         env_file=".env",
