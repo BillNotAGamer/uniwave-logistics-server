@@ -78,6 +78,13 @@ def create_app() -> FastAPI:
     async def health_check() -> dict[str, str]:
         return {"status": "ok"}
 
+    # ==================== WAKE RENDER ====================
+    @app.get("/ping", tags=["Health"])
+    async def ping():
+        """Endpoint siêu nhẹ để Render Free tỉnh dậy ngay khi frontend mở"""
+        return {"status": "awake", "message": "Backend đã sẵn sàng"}
+    # =====================================================
+
     return app
 
 
