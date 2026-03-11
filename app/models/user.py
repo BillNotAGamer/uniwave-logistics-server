@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -19,16 +19,19 @@ if TYPE_CHECKING:
     from app.models.role import Role
     from app.models.user_role import UserRole
 
+SQLITE_SAFE_BIGINT = BigInteger().with_variant(Integer(), "sqlite")
+
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(SQLITE_SAFE_BIGINT, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    nationality: Mapped[str | None] = mapped_column(String(120), nullable=True)
     tier: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

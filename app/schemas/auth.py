@@ -23,6 +23,7 @@ class RegisterRequest(APIModel):
     password: str = Field(min_length=6, max_length=128)
     full_name: str | None = Field(default=None, max_length=200)
     phone_number: str | None = Field(default=None, max_length=20)
+    nationality: str | None = Field(default=None, max_length=120)
     display_name: str | None = Field(default=None, max_length=120)
 
     @field_validator("email")
@@ -30,7 +31,7 @@ class RegisterRequest(APIModel):
     def normalize_email(cls, value: str) -> str:
         return _normalize_email(value)
 
-    @field_validator("full_name", "phone_number", "display_name")
+    @field_validator("full_name", "phone_number", "nationality", "display_name")
     @classmethod
     def normalize_optional_fields(cls, value: str | None) -> str | None:
         return _normalize_optional_text(value)
@@ -110,6 +111,7 @@ class UserProfileResponse(APIModel):
     full_name: str | None = None
     phone_number: str | None = None
     address: str | None = None
+    nationality: str | None = None
     tier: str
     is_profile_complete: bool
     requires_profile_completion: bool
@@ -133,6 +135,7 @@ class UpdateProfileRequest(APIModel):
     full_name: str = Field(min_length=1, max_length=200)
     phone_number: str = Field(min_length=1, max_length=20)
     address: str = Field(min_length=1, max_length=500)
+    nationality: str | None = Field(default=None, max_length=120)
     current_password: str | None = None
     new_password: str | None = None
 
@@ -143,6 +146,11 @@ class UpdateProfileRequest(APIModel):
         if not normalized:
             raise ValueError("Field cannot be empty.")
         return normalized
+
+    @field_validator("nationality")
+    @classmethod
+    def normalize_optional_fields(cls, value: str | None) -> str | None:
+        return _normalize_optional_text(value)
 
 
 class ResetPasswordValidateResponse(APIModel):

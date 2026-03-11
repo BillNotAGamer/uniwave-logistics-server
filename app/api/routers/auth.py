@@ -61,6 +61,7 @@ def _build_user_profile(user: User) -> UserProfileResponse:
         full_name=full_name,
         phone_number=user.phone_number,
         address=user.address,
+        nationality=user.nationality,
         tier=(user.tier or "Bronze"),
         is_profile_complete=is_profile_complete,
         requires_profile_completion=not is_profile_complete,
@@ -257,6 +258,7 @@ async def register(
         full_name=resolved_full_name,
         display_name=resolved_full_name,
         phone_number=request.phone_number,
+        nationality=request.nationality,
         tier="Bronze",
         email_verified_at=utc_now(),
     )
@@ -539,6 +541,8 @@ async def update_profile(
     user.display_name = request.full_name
     user.phone_number = request.phone_number
     user.address = request.address
+    if "nationality" in request.model_fields_set:
+        user.nationality = request.nationality
     user.updated_at = utc_now()
 
     await session.commit()
