@@ -131,6 +131,20 @@ class LoginResponse(APIModel):
     token_type: str = "bearer"
 
 
+class RefreshTokenRequest(APIModel):
+    refresh_token: str = Field(min_length=10, max_length=1024)
+
+    @field_validator("refresh_token")
+    @classmethod
+    def normalize_refresh_token(cls, value: str) -> str:
+        return value.strip()
+
+
+class RefreshTokenResponse(APIModel):
+    access_token: str
+    expires_in: int
+
+
 class UpdateProfileRequest(APIModel):
     full_name: str = Field(min_length=1, max_length=200)
     phone_number: str = Field(min_length=1, max_length=20)

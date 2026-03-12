@@ -28,6 +28,8 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     RegisterRequest,
     RegisterResponse,
     ResendVerificationRequest,
@@ -38,6 +40,7 @@ from app.schemas.auth import (
     VerifyEmailRequest,
 )
 from app.services.email import EmailService, get_email_service
+from app.services.auth_service import AuthService
 from app.services.jwt import JWTService, get_jwt_service
 
 logger = logging.getLogger(__name__)
@@ -312,6 +315,27 @@ async def login(
         email=user.email,
         full_name=(user.full_name or user.display_name or ""),
         roles=role_names,
+    )
+
+
+@router.post(
+    "/refresh",
+    response_model=RefreshTokenResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def refresh_access_token(
+    request: RefreshTokenRequest,
+    session: AsyncSession = Depends(get_db_session),
+    jwt_service: JWTService = Depends(get_jwt_service),
+) -> RefreshTokenResponse:
+    auth_service = AuthService(
+        session=session,
+        jwt_service=jwt_service,
+    )
+    refreshed = await auth_service.refresh_access_token(refresh_token=request.refresh_token)
+    return RefreshTokenResponse(
+        access_token=refreshed.access_token,
+        expires_in=refreshed.expires_in,
     )
 
 
